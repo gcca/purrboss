@@ -33,7 +33,7 @@ TEST_F(DatabaseTest, InitializeEnablesWalJournalMode) {
 
 TEST_F(DatabaseTest, CreateSessionThenFindSessionReturnsStoredFields) {
   const Session session{
-      .session_key = "sess_test_key",
+      .session_key = "purrboss.v1_test_key",
       .user_id = "user-1",
       .data = R"({"role":"admin"})",
       .created_at = 1000,
@@ -43,7 +43,7 @@ TEST_F(DatabaseTest, CreateSessionThenFindSessionReturnsStoredFields) {
   };
   database_->CreateSession(session);
 
-  const auto found = database_->FindSession("sess_test_key");
+  const auto found = database_->FindSession("purrboss.v1_test_key");
   ASSERT_TRUE(found.has_value());
   EXPECT_EQ(found->user_id, "user-1");
   EXPECT_EQ(found->data, R"({"role":"admin"})");
@@ -54,12 +54,12 @@ TEST_F(DatabaseTest, CreateSessionThenFindSessionReturnsStoredFields) {
 }
 
 TEST_F(DatabaseTest, FindSessionMissingReturnsNullopt) {
-  EXPECT_FALSE(database_->FindSession("sess_missing").has_value());
+  EXPECT_FALSE(database_->FindSession("purrboss.v1_missing").has_value());
 }
 
 TEST_F(DatabaseTest, RevokeSessionPreservesFirstReasonAndTimestamp) {
   database_->CreateSession(Session{
-      .session_key = "sess_revoke",
+      .session_key = "purrboss.v1_revoke",
       .user_id = "user-2",
       .data = "{}",
       .created_at = 1000,
@@ -68,10 +68,10 @@ TEST_F(DatabaseTest, RevokeSessionPreservesFirstReasonAndTimestamp) {
       .reason_revoked = {},
   });
 
-  EXPECT_TRUE(database_->RevokeSession("sess_revoke", 1500, "logout"));
-  EXPECT_TRUE(database_->RevokeSession("sess_revoke", 1600, "security"));
+  EXPECT_TRUE(database_->RevokeSession("purrboss.v1_revoke", 1500, "logout"));
+  EXPECT_TRUE(database_->RevokeSession("purrboss.v1_revoke", 1600, "security"));
 
-  const auto found = database_->FindSession("sess_revoke");
+  const auto found = database_->FindSession("purrboss.v1_revoke");
   ASSERT_TRUE(found.has_value());
   ASSERT_TRUE(found->revoked_at.has_value());
   EXPECT_EQ(*found->revoked_at, 1500);
@@ -79,7 +79,7 @@ TEST_F(DatabaseTest, RevokeSessionPreservesFirstReasonAndTimestamp) {
 }
 
 TEST_F(DatabaseTest, RevokeSessionMissingReturnsFalse) {
-  EXPECT_FALSE(database_->RevokeSession("sess_absent", 1500, "logout"));
+  EXPECT_FALSE(database_->RevokeSession("purrboss.v1_absent", 1500, "logout"));
 }
 
 TEST_F(DatabaseTest, TouchInstanceUpsertPreservesKnownFieldsWhenOmitted) {

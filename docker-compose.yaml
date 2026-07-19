@@ -1,0 +1,20 @@
+services:
+  purrboss:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: execute
+    image: purrboss:latest
+    environment:
+      TZ: UTC
+      DB_URL: /app/data/purrboss.db
+      PORT: "50051"
+      DEFAULT_TTL_SECONDS: "2592000"
+    ports:
+      - "50051:50051"
+    volumes:
+      - data:/app/data
+    restart: unless-stopped
+
+volumes:
+  data:

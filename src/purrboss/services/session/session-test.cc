@@ -75,7 +75,7 @@ TEST_F(SessionServiceTest, CreateSessionThenValidateSessionSucceeds) {
 TEST_F(SessionServiceTest, ValidateSessionReturnsNotFoundForUnknownKey) {
   grpc::ServerContext context;
   purrboss::v1::ValidateSessionRequest request;
-  request.set_session_key("sess_unknown");
+  request.set_session_key("purrboss.v1_unknown");
   purrboss::v1::ValidateSessionResponse response;
 
   ASSERT_TRUE(service_->ValidateSession(&context, &request, &response).ok());
@@ -132,7 +132,7 @@ TEST_F(SessionServiceTest, InvalidateSessionThenValidateReturnsRevoked) {
 TEST_F(SessionServiceTest, InvalidateSessionReturnsFalseForUnknownKey) {
   grpc::ServerContext context;
   purrboss::v1::InvalidateSessionRequest request;
-  request.set_session_key("sess_unknown");
+  request.set_session_key("purrboss.v1_unknown");
   purrboss::v1::InvalidateSessionResponse response;
 
   ASSERT_TRUE(service_->InvalidateSession(&context, &request, &response).ok());

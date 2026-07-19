@@ -24,7 +24,8 @@
 namespace {
 
 /**
- * Generates an opaque key with a sess_ prefix and 256 bits of source data.
+ * Generates an opaque key with a purrboss.v1_ prefix and 256 bits of source
+ * data.
  *
  * The target runtime must provide an OS-backed std::random_device before this
  * implementation is considered production-ready.
@@ -37,7 +38,7 @@ std::string GenerateSessionKey() {
     byte = static_cast<unsigned char>(random_source());
   }
 
-  std::string key = "sess_";
+  std::string key = "purrboss.v1_";
   key.reserve(key.size() + random_bytes.size() * 2);
   for (const unsigned char byte : random_bytes) {
     key.push_back(digits[byte >> 4]);

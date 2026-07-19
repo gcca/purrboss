@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.7
+
+ARG ALPINE_VERSION=3.23
+ARG BUILD_JOBS=4
+ARG CMAKE_VERSION=4.3.2
+
+FROM alpine:${ALPINE_VERSION}
+
+ARG BUILD_JOBS
+ARG CMAKE_VERSION
+
+ENV CMAKE_BUILD_PARALLEL_LEVEL=${BUILD_JOBS} \
+    CMAKE_PREFIX_PATH=/usr \
+    LD_LIBRARY_PATH=/usr/lib
+
+RUN apk add --no-cache \
+    abseil-cpp-dev \
+    build-base \
+    c-ares-dev \
+    git \
+    grpc-dev \
+    gtest-dev \
+    linux-headers \
+    ninja-is-really-ninja \
+    openssl-dev \
+    pkgconf \
+    protobuf-c-dev \
+    protobuf-dev \
+    py3-pip \
+    python3 \
+    re2-dev \
+    sqlite-dev \
+    zlib-dev
+
+RUN python3 -m pip install --break-system-packages --no-cache-dir "cmake==${CMAKE_VERSION}"
