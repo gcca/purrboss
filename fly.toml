@@ -1,0 +1,28 @@
+app = 'purrboss'
+primary_region = 'ord'
+
+[build]
+  image = 'ghcr.io/gcca/purrboss:latest'
+
+[env]
+  DB_URL = '/app/data/purrboss.db'
+  PORT = '50051'
+  TZ = 'UTC'
+  DEFAULT_TTL_SECONDS = '2592000'
+
+[[mounts]]
+  source = 'purrboss_data'
+  destination = '/app/data'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '1024mb'
+  cpus = 1
+
+[checks]
+  [checks.alive]
+    type = 'tcp'
+    port = 50051
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'

@@ -1,0 +1,229 @@
+// PurrBoss central session API, major version 1.
+//
+// Wire identity:
+//
+//   package: purrboss.v1
+//   service: purrboss.v1.SessionService
+//
+// The package is the authoritative API version marker. The file remains
+// session.proto because its name describes the API domain. Do not add V1 to
+// the service name: purrboss.v1.SessionServiceV1 would encode the version
+// twice.
+//
+// Compatible additions stay in purrboss.v1. Never change the meaning or wire
+// type of an existing field number. Reserve removed field numbers and names
+// so they can never be reused. An incompatible contract must use a new
+// package such as purrboss.v2 and run beside v1 while clients migrate.
+//
+// This repository currently has one API version, so its canonical file is
+// protos/session.proto. If multiple major versions coexist, prefer version
+// directories over filename suffixes:
+//
+//   protos/v1/session.proto
+//   protos/v2/session.proto
+//
+// Preserve the canonical import path "session.proto" if that layout is
+// introduced after clients have started importing this file.
+//
+// System context:
+//
+//   +--------+              +-------------------+
+//   | Mobile | -- key ----> | Main App Instance |
+//   +--------+              +---------+---------+
+//                                     |
+//                                     v
+//                           +--------------------+
+//                           | Local SQLite Cache |
+//                           +----+----------+----+
+//                                |          |
+//                          hit   |          | miss/stale
+//                                v          v
+//                         use session  ValidateSession
+//                                          |
+//                                          v
+//                                     +----------+
+//                                     | PurrBoss |
+//                                     +----+-----+
+//                                          |
+//                                          v
+//                                +-------------------+
+//                                | Persistent SQLite |
+//                                +-------------------+
+//
+// PurrBoss is the authoritative source. A main app's SQLite cache is local,
+// ephemeral, and outside this API.
+
+syntax = "proto3";
+
+package purrboss.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Authoritative session operations used by horizontally scaled main apps.
+//
+// Calls are intended for private service-to-service networking. A caller may
+// attach these lowercase gRPC metadata entries:
+//
+//   x-machine-id   Runtime instance ID; enables active-instance tracking.
+//   x-internal-ip  Private address used by the planned webhook fan-out.
+//   x-region       Deployment region containing the main app instance.
+//
+// Every RPC refreshes active_instances when x-machine-id is present. Omitting
+// it does not make the session operation invalid; it only skips tracking.
+service SessionService {
+  // Creates a new opaque session and persists it before returning.
+  //
+  //   Main App              PurrBoss                 SQLite
+  //      | CreateSession       |                        |
+  //      |-------------------->|                        |
+  //      |                     | INSERT session         |
+  //      |                     |----------------------->|
+  //      |                     |<-----------------------| committed
+  //      |<--------------------| key + expiration       |
+  //
+  // This operation is not idempotent: retrying a successful request creates
+  // another session. A future idempotency key would require a new request
+  // field and persistence rule.
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // Reads authoritative state after a local cache miss or stale cache entry.
+  //
+  //   Main App          Local Cache          PurrBoss          SQLite
+  //      | lookup            |                  |                |
+  //      |------------------>|                  |                |
+  //      |<------------------| hit              |                |
+  //      | use cached session|                  |                |
+  //      |                   |                  |                |
+  //      |<------------------| miss/stale       |                |
+  //      | ValidateSession -------------------->|                |
+  //      |                                      | SELECT session |
+  //      |                                      |--------------->|
+  //      |                                      |<---------------|
+  //      |<-------------------------------------| result          |
+  //
+  // The cache-hit path ends without a central RPC. The miss/stale path
+  // continues with ValidateSession.
+  //
+  // Invalid session states are normal responses, not transport errors.
+  rpc ValidateSession(ValidateSessionRequest)
+      returns (ValidateSessionResponse);
+
+  // Soft-revokes a session by setting revoked_at and reason_revoked.
+  //
+  //   Main App              PurrBoss                 SQLite
+  //      | InvalidateSession  |                        |
+  //      |------------------->|                        |
+  //      |                    | UPDATE revoked_at      |
+  //      |                    |----------------------->|
+  //      |                    |<-----------------------| committed
+  //      |<-------------------| success                |
+  //                           |
+  //                           + - planned webhook - -> recent main apps
+  //
+  // Repeating the call is safe. PurrBoss preserves the first revocation time
+  // and reason. Webhook delivery is a server-side concern and is not part of
+  // this RPC response.
+  rpc InvalidateSession(InvalidateSessionRequest)
+      returns (InvalidateSessionResponse);
+
+  // Checks application-level availability and records caller activity.
+  //
+  //   Main App              PurrBoss            active_instances
+  //      | Ping                |                        |
+  //      |-------------------->|                        |
+  //      |                     | UPSERT caller          |
+  //      |                     |----------------------->|
+  //      |<--------------------| ok + server time       |
+  //
+  // PurrBoss also exposes the standard gRPC health service.
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+// Input used to create one authoritative session.
+message CreateSessionRequest {
+  // Stable application user identifier associated with the new session.
+  // Must not be empty.
+  string user_id = 1;
+
+  // Additional string-to-string session attributes.
+  // PurrBoss stores this map as a JSON object and returns it unchanged.
+  map<string, string> metadata = 2;
+
+  // Requested lifetime in seconds.
+  // Zero selects the server default. The current server accepts values from
+  // 1 through 315,360,000 seconds (ten years).
+  int64 ttl_seconds = 3;
+}
+
+// Newly persisted session data returned to the main app.
+message CreateSessionResponse {
+  // Opaque bearer credential generated by PurrBoss.
+  // Treat it as secret and never write the full value to production logs.
+  string session_key = 1;
+
+  // Absolute UTC instant after which validation returns expired.
+  google.protobuf.Timestamp expires_at = 2;
+
+  // Authoritative copy of the metadata stored for this session.
+  map<string, string> session_data = 3;
+}
+
+// Input used to validate one opaque session key.
+message ValidateSessionRequest {
+  // Opaque key received by the main app from the mobile client.
+  // Must not be empty.
+  string session_key = 1;
+
+  // Signals that the caller intentionally bypassed its local cache.
+  // PurrBoss already reads authoritative state for every validation, so the
+  // current server accepts this field but does not change its behavior.
+  bool force_refresh = 2;
+}
+
+// Authoritative validation result.
+message ValidateSessionResponse {
+  // True only when the session exists, has not expired, and is not revoked.
+  bool valid = 1;
+
+  // Present when valid is true. Empty for invalid sessions.
+  string user_id = 2;
+
+  // Present when valid is true. Empty for invalid sessions.
+  google.protobuf.Timestamp expires_at = 3;
+
+  // Present when valid is true. Empty for invalid sessions.
+  map<string, string> session_data = 4;
+
+  // Stable machine-readable result: valid, not_found, expired, or revoked.
+  // Callers must not treat this value as human-facing text.
+  string reason = 5;
+}
+
+// Input used to soft-revoke one session.
+message InvalidateSessionRequest {
+  // Opaque key to revoke. Must not be empty.
+  string session_key = 1;
+
+  // Stable audit reason such as logout or security.
+  // An empty value is stored as unspecified.
+  string reason = 2;
+}
+
+// Result of an idempotent soft-revocation attempt.
+message InvalidateSessionResponse {
+  // True when the session exists, including when it was already revoked.
+  // False when no session matches session_key.
+  bool success = 1;
+}
+
+// Ping has no request body. Caller identity belongs in gRPC metadata.
+message PingRequest {}
+
+// Application-level liveness response.
+message PingResponse {
+  // True when the service handled the request successfully.
+  bool ok = 1;
+
+  // PurrBoss wall-clock time in UTC.
+  google.protobuf.Timestamp server_time = 2;
+}

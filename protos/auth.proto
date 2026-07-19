@@ -1,0 +1,105 @@
+// PurrBoss authentication API, major version 1.
+//
+// Wire identity:
+//
+//   package: purrboss.v1
+//   service: purrboss.v1.AuthService
+//
+// The package is the authoritative API version marker. The file is auth.proto
+// because its name describes the API domain. Do not add V1 to the service
+// name: purrboss.v1.AuthServiceV1 would encode the version twice.
+//
+// Compatible additions stay in purrboss.v1. Never change the meaning or wire
+// type of an existing field number. Reserve removed field numbers and names so
+// they can never be reused. An incompatible contract must use a new package
+// such as purrboss.v2 and run beside v1 while clients migrate.
+
+syntax = "proto3";
+
+package purrboss.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Authoritative user authentication operations.
+//
+// Calls are intended for private service-to-service networking, using the same
+// insecure gRPC transport as SessionService. Unlike SessionService, these RPCs
+// do not track active instances.
+service AuthService {
+  // Returns stored profile facts for a user without verifying any credential.
+  //
+  //   Caller                PurrBoss                 SQLite
+  //      | UserInfo           |                        |
+  //      |------------------->|                        |
+  //      |                    | SELECT auth_user       |
+  //      |                    |----------------------->|
+  //      |                    |<-----------------------|
+  //      |<-------------------| profile                |
+  //
+  // A missing user is a NOT_FOUND error, not an empty response.
+  rpc UserInfo(UserInfoRequest) returns (UserInfoResponse);
+
+  // Verifies a username and password and returns the user's profile.
+  //
+  //   Caller                PurrBoss                 SQLite
+  //      | Authenticate       |                        |
+  //      |------------------->|                        |
+  //      |                    | SELECT auth_user       |
+  //      |                    |----------------------->|
+  //      |                    |<-----------------------| hash + profile
+  //      |                    | Argon2d verify         |
+  //      |                    | UPDATE last_logged_at  |
+  //      |                    |----------------------->|
+  //      |<-------------------| authenticated + profile|
+  //
+  // A wrong password is UNAUTHENTICATED; a missing user is NOT_FOUND. A
+  // successful call advances last_logged_at to the server's current time.
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse);
+}
+
+// Non-secret profile facts about one user. Never carries the password hash.
+message UserInfo {
+  // Whether the account may currently authenticate.
+  bool is_active = 1;
+
+  // Contact email. Empty when the stored column is null.
+  string email = 2;
+
+  // Absolute UTC instant the account row was created.
+  google.protobuf.Timestamp created_at = 3;
+
+  // Absolute UTC instant of the most recent successful authentication. On the
+  // response to a successful Authenticate this reflects the just-recorded time.
+  google.protobuf.Timestamp last_logged_at = 4;
+}
+
+// Input used to read one user's profile.
+message UserInfoRequest {
+  // Account username to look up. Must not be empty.
+  string username = 1;
+}
+
+// Profile lookup result.
+message UserInfoResponse {
+  // Present when the user exists.
+  UserInfo userinfo = 1;
+}
+
+// Input used to verify one user's credential.
+message AuthenticateRequest {
+  // Account username. Must not be empty.
+  string username = 1;
+
+  // Plaintext password to verify against the stored Argon2d hash.
+  // Treat it as secret and never write it to production logs.
+  string password = 2;
+}
+
+// Credential verification result.
+message AuthenticateResponse {
+  // True only when the user exists and the password verifies.
+  bool authenticated = 1;
+
+  // Present when authenticated is true. Absent for a failed attempt.
+  UserInfo userinfo = 2;
+}
