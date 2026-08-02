@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(gRPC CONFIG REQUIRED)
-find_package(Protobuf CONFIG REQUIRED)
+find_package(Protobuf REQUIRED)
 find_package(SQLite3 REQUIRED)
 
 include(cmake/ProtoGen.cmake)

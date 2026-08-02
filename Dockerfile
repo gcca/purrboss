@@ -20,7 +20,6 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
-        clang \
         curl \
         git \
         libabsl-dev \
@@ -68,8 +67,8 @@ COPY src ./src
 
 RUN cmake -S . -B build -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_C_COMPILER=clang \
-        -DCMAKE_CXX_COMPILER=clang++ \
+        -DCMAKE_C_COMPILER=gcc \
+        -DCMAKE_CXX_COMPILER=g++ \
         -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
     && cmake --build build --parallel "${BUILD_JOBS}" --target purrboss
 

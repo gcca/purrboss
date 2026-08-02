@@ -1,6 +1,7 @@
 #include <CLI11.hpp>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
+#include <print>
 
 #include "purrboss/services/auth.hpp"
 #include "purrboss/services/session.hpp"

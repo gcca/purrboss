@@ -1,5 +1,7 @@
 #include "purrboss/storage/db.hpp"
 
+#include <stdexcept>
+
 #include <sqlite3.h>
 
 namespace {
