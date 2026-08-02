@@ -34,9 +34,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: execute
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ env.IMAGE_NAME }}:latest
-          build-args: DEPS_IMAGE=${{ env.IMAGE_NAME }}-deps:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

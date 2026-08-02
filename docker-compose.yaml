@@ -7,9 +7,9 @@ services:
     image: purrboss:latest
     environment:
       TZ: UTC
-      DB_URL: /app/data/purrboss.db
-      PORT: "50051"
-      DEFAULT_TTL_SECONDS: "2592000"
+      PURRBOSS_DBPATH: /app/data/purrboss.db
+      PURRBOSS_PORT: "50051"
+      PURRBOSS_DEFAULT_TTL_SECONDS: "2592000"
     ports:
       - "50051:50051"
     volumes:

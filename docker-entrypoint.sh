@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
 
-mkdir -p "$(dirname "${DB_URL}")"
-export DATABASE_URL="sqlite:${DB_URL}"
+mkdir -p "$(dirname "${PURRBOSS_DBPATH}")"
+export DATABASE_URL="sqlite:${PURRBOSS_DBPATH}"
 dbmate --migrations-dir /app/migrations --no-dump-schema up
 
 if [ "$#" -eq 0 ]; then
-  set -- purrboss --port "${PORT}" --database "${DB_URL}" \
-    --default-ttl-seconds "${DEFAULT_TTL_SECONDS}"
+  set -- purrboss --port "${PURRBOSS_PORT}" --database "${PURRBOSS_DBPATH}" \
+    --default-ttl-seconds "${PURRBOSS_DEFAULT_TTL_SECONDS}"
 fi
 
 exec "$@"
